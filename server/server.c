@@ -1,0 +1,44 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <arpa/inet.h>
+
+#include "server.h"
+
+#define PORT 8080
+
+int server_fd;
+pthread_mutex_t file_mutex;
+
+void *handle_client(void *arg);
+
+int main() {
+    int client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_len = sizeof(client_addr);
+
+    pthread_mutex_init(&file_mutex, NULL);
+
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(PORT);
+
+    bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    listen(server_fd, 10);
+
+    printf("Server running on port %d...\n", PORT);
+
+    while (1) {
+        client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+
+        pthread_t tid;
+        int* pclient = malloc(sizeof(int));
+        *pclient = client_fd;
+
+        pthread_create(&tid, NULL, handle_client, pclient);
+        pthread_detach(tid);
+    }
+}
