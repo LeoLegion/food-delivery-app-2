@@ -4,21 +4,21 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 
-#include "server.h"
+// #include "server.h"
 
 #define PORT 8080
 
-int server_fd;
-pthread_mutex_t file_mutex;
+// int server_fd;
+// pthread_mutex_t file_mutex;
 
 void *handle_client(void *arg);
 
 int main() {
-    int client_fd;
+    int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
 
-    pthread_mutex_init(&file_mutex, NULL);
+    // pthread_mutex_init(&file_mutex, NULL);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -41,4 +41,26 @@ int main() {
         pthread_create(&tid, NULL, handle_client, pclient);
         pthread_detach(tid);
     }
+
+    return 0;
+}
+
+void *handle_client(void *arg) {
+    int client_fd = *((int *)arg);
+    free(arg);
+    char buffer[256];
+
+    while (1) {
+        int n = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0)
+            break;
+
+        buffer[n] = '\0';
+        printf("Client says: %s\n", buffer);
+
+        send(client_fd, buffer, n, 0);
+    }
+
+    close(client_fd);
+    return NULL;
 }
