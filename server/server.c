@@ -48,6 +48,7 @@ int main() {
 void *handle_client(void *arg) {
     int client_fd = *((int *)arg);
     free(arg);
+    
     char buffer[256];
 
     while (1) {
