@@ -21,13 +21,24 @@ int main() {
     // pthread_mutex_init(&file_mutex, NULL);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("socker failed");
+        exit(EXIT_FAILURE);
+    }
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
 
-    bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
-    listen(server_fd, 10);
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(server_fd, 10) < 0) {
+        perror("listen failed");
+        exit(EXIT_FAILURE);
+    }
 
     printf("Server running on port %d...\n", PORT);
 
@@ -48,7 +59,7 @@ int main() {
 void *handle_client(void *arg) {
     int client_fd = *((int *)arg);
     free(arg);
-    
+
     char buffer[256];
 
     while (1) {

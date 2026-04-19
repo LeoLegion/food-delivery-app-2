@@ -1,0 +1,10 @@
+# compiled binaries
+server/server
+client/client
+*.o
+
+# build folders
+build/
+
+# temporary files
+*.log
