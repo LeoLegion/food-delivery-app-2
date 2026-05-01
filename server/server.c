@@ -21,12 +21,25 @@ int user_count = 0;
 
 pthread_mutex_t user_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+#define MAX_RESTAURANTS 50
+
+typedef struct {
+    char name[100];
+} Restaurant;
+
+Restaurant restaurants[MAX_RESTAURANTS];
+int restaurant_count = 0;
+
+pthread_mutex_t restaurant_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 // int server_fd;
 // pthread_mutex_t file_mutex;
 
 int register_user(const char *username, const char *password);
 
 int login_user(const char *username, const char *password);
+
+int add_restaurant(const char *name);
 
 void *handle_client(void *arg);
 
@@ -110,6 +123,21 @@ int login_user(const char *username, const char *password) {
     return 0;
 }
 
+int add_restaurant(const char *name) {
+    pthread_mutex_lock(&restaurant_mutex);
+
+    if (restaurant_count >= MAX_RESTAURANTS) {
+        pthread_mutex_unlock(&restaurant_mutex);
+        return 0;
+    }
+
+    strcpy(restaurants[restaurant_count].name, name);
+    restaurant_count++;
+
+    pthread_mutex_unlock(&restaurant_mutex);
+    return 1;
+}
+
 void *handle_client(void *arg) {
     int client_fd = *((int *)arg);
     free(arg);
@@ -127,9 +155,11 @@ void *handle_client(void *arg) {
         buffer[n] = '\0';
         printf("Client says: %s\n", buffer);
 
-        char command[20], username[50], password[50];
-
-        int args = sscanf(buffer, "%s %s %s", command, username, password);
+        char command[20];
+        char arg1[100];
+        char arg2[100];
+        
+        int args = sscanf(buffer, "%s %s %s", command, arg1, arg2);
 
         if (strcmp(command, "REGISTER") == 0) {
             
@@ -138,7 +168,7 @@ void *handle_client(void *arg) {
                 continue;
             }
 
-            int result = register_user(username, password);
+            int result = register_user(arg1, arg2);
 
             if (result == 1) {
                 send(client_fd, "REGISTER_SUCCESS\n", 17, 0);
@@ -154,13 +184,50 @@ void *handle_client(void *arg) {
                 continue;
             }
 
-            if (login_user(username, password)) {
+            if (login_user(arg1, arg2)) {
                 is_logged_in = 1;
-                strcpy(current_user, username);
+                strcpy(current_user, arg1);
                 send(client_fd, "LOGIN_SUCCESS\n", 14, 0);
             } else {
                 send(client_fd, "LOGIN_FAILED\n", 13, 0);
             }
+        } else if (strcmp(command, "ADD_RESTAURANT") == 0) {
+
+            if (!is_logged_in) {
+                send(client_fd, "LOGIN_REQUIRED\n", 15, 0);
+                continue;
+            }
+
+            if (args < 2) {
+                send(client_fd, "INVALID_FORMAT\n", 15, 0);
+                continue;
+            }
+
+            if (add_restaurant(arg1))
+                send(client_fd, "RESTAURANT_ADDED\n", 17, 0);
+            else
+                send(client_fd, "RESTAURANT_LIMIT_REACHED\n", 24, 0);
+        } else if (strcmp(command, "LIST_RESTAURANTS") == 0) {
+
+            if (!is_logged_in) {
+                send(client_fd, "LOGIN_REQUIRED\n", 15, 0);
+                continue;
+            }
+
+            pthread_mutex_lock(&restaurant_mutex);
+
+            if (restaurant_count == 0) {
+                send(client_fd, "NO_RESTAURANTS\n", 15, 0);
+            } else {
+                char response[1024] = "";
+                for (int i = 0; i < restaurant_count; i++) {
+                    strcat(response, restaurants[i].name);
+                    strcat(response, "\n");
+                }
+                send(client_fd, response, strlen(response), 0);
+            }
+
+            pthread_mutex_unlock(&restaurant_mutex);
         }
 
         else {
