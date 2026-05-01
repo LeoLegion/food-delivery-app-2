@@ -26,6 +26,8 @@ pthread_mutex_t user_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int register_user(const char *username, const char *password);
 
+int login_user(const char *username, const char *password);
+
 void *handle_client(void *arg);
 
 int main() {
@@ -87,9 +89,25 @@ int register_user(const char *username, const char *password) {
 
     strcpy(users[user_count].username, username);
     strcpy(users[user_count].password, password);
+    user_count++;
 
     pthread_mutex_unlock(&user_mutex);
     return 1;
+}
+
+int login_user(const char *username, const char *password) {
+    pthread_mutex_lock(&user_mutex);
+
+    for (int i = 0; i < user_count; i++) {
+        if (strcmp(users[i].username, username) == 0 &&
+            strcmp(users[i].password, password) == 0) {
+                pthread_mutex_unlock(&user_mutex);
+                return 1;
+            }
+    }
+
+    pthread_mutex_unlock(&user_mutex);
+    return 0;
 }
 
 void *handle_client(void *arg) {
@@ -97,6 +115,9 @@ void *handle_client(void *arg) {
     free(arg);
 
     char buffer[256];
+
+    int is_logged_in = 0;
+    char current_user[50];
 
     while (1) {
         int n = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
@@ -108,9 +129,15 @@ void *handle_client(void *arg) {
 
         char command[20], username[50], password[50];
 
-        sscanf(buffer, "%s %s %s", command, username, password);
+        int args = sscanf(buffer, "%s %s %s", command, username, password);
 
         if (strcmp(command, "REGISTER") == 0) {
+            
+            if (args != 3) {
+                send(client_fd, "INVALID_FORMAT\n", 15, 0);
+                continue;
+            }
+
             int result = register_user(username, password);
 
             if (result == 1) {
@@ -120,10 +147,26 @@ void *handle_client(void *arg) {
             } else {
                 send(client_fd, "SERVER_FULL\n", 12, 0);
             }
-        } else {
+        } else if (strcmp(command, "LOGIN") == 0) {
+            
+            if (args != 3) {
+                send(client_fd, "INVALID_FORMAT\n", 15, 0);
+                continue;
+            }
+
+            if (login_user(username, password)) {
+                is_logged_in = 1;
+                strcpy(current_user, username);
+                send(client_fd, "LOGIN_SUCCESS\n", 14, 0);
+            } else {
+                send(client_fd, "LOGIN_FAILED\n", 13, 0);
+            }
+        }
+
+        else {
             send(client_fd, "INVALID_COMMAND\n", 16, 0);
         }
-            }
+    }
 
     close(client_fd);
     return NULL;
